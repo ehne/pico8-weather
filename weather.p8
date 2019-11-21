@@ -1,8 +1,26 @@
 pico-8 cartridge // http://www.pico-8.com
 version 18
 __lua__
+-- weather, darcy lugt-falk --
+-- lone paperclip --
+function init_refresh_anim()
+		
+		-- the tween function, takes args:
+		-- p - your object
+		-- table - table with the target values you want
+		-- 1 (optional) - time (in seconds) in what your value should end with your target value, default is 1
+		-- "quad_in_out" - easing function, you can look up all defined functions in the tab 1, I've implemented a few examples from https://easings.net/
+		local v=tween(loading_anim,{x=(loading_anim.x==118 and 12 or 118),y=128-10-5},1,"quad_in_out")
+		v.onend=function()
+			init_refresh_anim()
+		end
+		v.delay=0
+end
 
 function _init()
+loading_anim = {x=13,y=128-10-5}
+		init_refresh_anim()
+		
 		reset_pins()
 		alphabet = {"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p",
 "q", "r", "s", "t", "u", "v", "w", "x", "y", "z","/", ",", " ", "-" }
@@ -10,20 +28,23 @@ function _init()
 		set_pin(1,0)
 
 		string_to_pins("loading", 2)
-
+		
 end
 
 
 function _draw()
 
-	cls()
+	cls(12)
 	--print(alphabet[get_pin(2)+1])
-	print("the temperature in ",10,10,12)
+	clouds()
+	print("the temperature in ",10,10,1)
 	print(pins_to_string(2,50).." is",10,17)
 	print(get_pin(1).." degrees",10,17+7,10)
 	print("press ❎ to reload",10,128-10,5)
 	if whos_working() =="web" then
-		print("refreshing...",10,128-10-5-2,6)
+		line(10,128-10-5,118,128-10-5)
+		circfill(loading_anim.x,loading_anim.y,2,6)
+		--print("refreshing...",10,128-10-5-2,6)
 	end
 end
 
@@ -31,8 +52,22 @@ function _update60()
 	if btnp(❎) then
 		set_pin(0,1)
 	end
+	if whos_working() == "web" then
+		tween_update(1/60)
+	end
 end
 -->8
+-- draws --
+function clouds()
+	circfill(10,128,30,7)
+	circfill(40,128,25,7)
+	circfill(50,128,27,7)
+	circfill(80,120,25,7)
+	circfill(100,140,40,7)
+	circfill(128,128,25,7)
+end
+-->8
+-- pin logic --
 function set_pin(pin,value) --pin : pin between 0 and 127
 	poke(0x5f80+pin, value) --value : the value between 0 and 255
 end
@@ -87,6 +122,63 @@ function reset_pins()
 	end
 end
 
+-->8
+--tween--
+
+local back=1.70158
+
+functions={
+["linear"]=function(t) return t end,
+["quad_out"]=function(t) return -t*(t-2) end,
+["quad_in"]=function(t) return t*t end,
+["quad_in_out"]=function(t) t=t*2 if(t<1) return 0.5*t*t
+	return -0.5*((t-1)*(t-3)-1) end,
+["back_in"]=function(t) local s=back	return t*t*((s+1)*t-s) end,
+["back_out"]=function(t) local s=back t-=1 return t*t*((s+1)*t+s)+1 end,
+["back_in_out"]=function(t) local s=back t*=2 if (t<1) s*=1.525 return 0.5*(t*t*((s+1)*t-s))
+ t-=2 s*=1.525	return 0.5*(t*t*((s+1)*t+s)+2) end
+}
+
+local tasks={}
+
+function tween(o,vl,t,fn)
+ local task={
+  vl={},
+  rate=t or 1,
+  o=o,
+  progress=0,
+  delay=0,
+  fn=functions[fn or "quad_out"]
+ }
+ 
+ for k,v in pairs(vl) do
+  local x=o[k]
+  task.vl[k]={start=x,diff=v-x}
+ end
+ 
+ add(tasks,task)
+ return task
+end
+
+function tween_update(dt)
+ for t in all(tasks) do
+  if t.delay>0 then
+   t.delay-=dt
+  else
+   t.progress+=dt/t.rate  
+   local p=t.progress
+   local x=t.fn(p>=1 and 1 or p)
+   for k,v in pairs(t.vl) do
+    t.o[k]=v.start+v.diff*x
+   end
+   
+   if p>=1 then
+    del(tasks,t)
+    if (t.onend) t.onend()
+   end 
+  end
+ end
+end
 __gfx__
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
